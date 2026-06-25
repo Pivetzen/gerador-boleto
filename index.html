@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Boleto Estruturado com PIX</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; color: #000; margin: 20px; font-size: 12px; }
+        .boleto-container { width: 660px; margin: 0 auto; border: 1px solid #000; padding: 15px; }
+        .linha { display: flex; border-bottom: 1px solid #000; }
+        .coluna { padding: 5px; border-right: 1px solid #000; flex: 1; }
+        .coluna:last-child { border-right: none; }
+        .titulo { font-size: 9px; text-transform: uppercase; color: #333; font-weight: bold; margin-bottom: 3px; }
+        .valor { font-size: 12px; font-weight: bold; }
+        .topo-boleto { display: flex; align-items: center; border-bottom: 2px solid #000; padding-bottom: 5px; }
+        .banco-logo { font-size: 22px; font-weight: bold; padding-right: 15px; border-right: 2px solid #000; }
+        .banco-codigo { font-size: 18px; font-weight: bold; padding: 0 15px; border-right: 2px solid #000; }
+        .linha-digitavel { font-size: 14px; font-weight: bold; flex: 1; text-align: right; }
+        .pix-section { display: flex; align-items: center; justify-content: space-between; border: 1px dashed #000; padding: 10px; margin-top: 15px; margin-bottom: 15px; }
+        .pix-txt { width: 70%; }
+        #qrcode { width: 100px; height: 100px; }
+        .codigo-barras-box { margin-top: 20px; text-align: left; }
+        /* Simulação visual de código de barras usando gradiente CSS linear repetido */
+        .barcode { height: 50px; background: linear-gradient(90deg, #000 1px, transparent 1px, #000 3px, transparent 2px); background-size: 12px 100%; width: 400px; }
+        @media print { .no-print { display: none; } body { margin: 0; } .boleto-container { border: none; } }
+    </style>
+</head>
+<body>
+
+<div class="no-print" style="text-align:center; margin-bottom: 20px;">
+    <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Imprimir / Salvar PDF</button>
+</div>
+
+<div class="boleto-container">
+    <div class="topo-boleto">
+        <div class="banco-logo">001-9</div>
+        <div class="banco-codigo">BANCO DO BRASIL</div>
+        <div class="linha-digitavel" id="lblLinhaDigitavel">00190.00009 02345.678901 23456.789012 1 93450000012345</div>
+    </div>
+
+    <div class="linha">
+        <div class="coluna" style="flex: 3;">
+            <div class="titulo">Local de Pagamento</div>
+            <div>Pagável em qualquer banco até o vencimento</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Vencimento</div>
+            <div class="valor" id="lblVencimento">00/00/0000</div>
+        </div>
+    </div>
+
+    <div class="linha">
+        <div class="coluna" style="flex: 3;">
+            <div class="titulo">Beneficiário</div>
+            <div id="lblBeneficiario">Nome do Beneficiario LTDA</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Agência / Código Beneficiário</div>
+            <div>1234-5 / 987654-3</div>
+        </div>
+    </div>
+
+    <div class="linha">
+        <div class="coluna">
+            <div class="titulo">Data do Doc.</div>
+            <div id="lblDataDoc">00/00/0000</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Nº Documento</div>
+            <div id="lblNossoNumero">000001</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Espécie Doc.</div>
+            <div>DM</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Aceite</div>
+            <div>N</div>
+        </div>
+        <div class="coluna">
+            <div class="titulo">Data Processamento</div>
+            <div id="lblDataProc">00/00/0000</div>
+        </div>
+    </div>
+
+    <div class="linha" style="border-bottom: none;">
+        <div class="coluna" style="flex: 3; border-bottom: 1px solid #000;">
+            <div class="titulo">Instruções (Todas as instuções de cobrança)</div>
+            <div style="margin-top: 5px; color: #555;">Sr. Caixa, não receber após o vencimento.</div>
+            <div style="margin-top: 5px; font-weight: bold; color: #000;">PAGUE VIA PIX UTILIZANDO O QR CODE ABAIXO</div>
+        </div>
+        <div class="coluna" style="padding: 0; flex: 1;">
+            <div class="coluna" style="border-right: none; border-bottom: 1px solid #000;">
+                <div class="titulo">(=) Valor do Documento</div>
+                <div class="valor" style="text-align: right;" id="lblValor">0,00</div>
+            </div>
+            <div class="coluna" style="border-right: none; border-bottom: 1px solid #000;">
+                <div class="titulo">(-) Descontos / Abatimento</div>
+                <div style="text-align: right;">0,00</div>
+            </div>
+            <div class="coluna" style="border-right: none;">
+                <div class="titulo">(=) Valor Cobrado</div>
+                <div class="valor" style="text-align: right;" id="lblValorTotal">0,00</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pix-section">
+        <div class="pix-txt">
+            <div class="titulo" style="color: #008080;">Alternativa de Pagamento: PIX Dinâmico</div>
+            <p style="margin: 5px 0;">Escaneie o QR Code ao lado ou copie a linha Pix para pagar instantaneamente de qualquer banco.</p>
+            <div class="titulo">Pix Copia e Cola</div>
+            <input type="text" id="txtPixCopiaCola" readonly style="width: 100%; font-size: 10px; padding: 3px;">
+        </div>
+        <div id="qrcode"></div>
+    </div>
+
+    <div class="linha" style="border-top: 1px solid #000;">
+        <div class="coluna">
+            <div class="titulo">Pagador</div>
+            <div id="lblPagador">Nome do Cliente - CPF: 000.000.000-00</div>
+            <div style="margin-top: 3px;">Rua do Cliente, 123 - Centro - Fortaleza - CE</div>
+        </div>
+    </div>
+
+    <div class="codigo-barras-box">
+        <div class="barcode"></div>
+    </div>
+</div>
+
+<script>
+    // Função para capturar parâmetros da URL
+    function getJsonFromUrl() {
+        var query = location.search.substr(1);
+        var result = {};
+        query.split("&").forEach(function(part) {
+            var item = part.split("=");
+            result[item[0]] = decodeURIComponent(item[1]);
+        });
+        return result;
+    }
+
+    window.onload = function() {
+        var dados = getJsonFromUrl();
+        
+        if(dados.v) {
+            // Injeta os dados nos IDs correspondentes
+            document.getElementById('lblBeneficiario').innerText = dados.b + " | CNPJ: " + (dados.cb || "");
+            document.getElementById('lblPagador').innerText = dados.p + " | CPF/CNPJ: " + (dados.cp || "");
+            document.getElementById('lblValor').innerText = "R$ " + parseFloat(dados.v).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            document.getElementById('lblValorTotal').innerText = "R$ " + parseFloat(dados.v).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            document.getElementById('lblNossoNumero').innerText = dados.n || "000001";
+            
+            // Tratamento de datas
+            var dataVenc = new Date(dados.d + "T12:00:00");
+            var dataHoje = new Date();
+            document.getElementById('lblVencimento').innerText = dataVenc.toLocaleDateString('pt-BR');
+            document.getElementById('lblDataDoc').innerText = dataHoje.toLocaleDateString('pt-BR');
+            document.getElementById('lblDataProc').innerText = dataHoje.toLocaleDateString('pt-BR');
+
+            // Geração Simples de uma string Pix Estática (Padrão BR Code Emv)
+            // Nota: Para produção real, integra-se aqui a API do seu banco para trazer o Pix verificado.
+            var valorFormatadoPix = parseFloat(dados.v).toFixed(2);
+            var pixPayload = "00020101021226580014br.gov.bcb.pix0136" + (dados.pix || "chave@pix.com") + "520400005303986540" + valorFormatadoPix.length + valorFormatadoPix + "5802BR5913" + dados.b.substring(0,13) + "6008BRASILIA62070503***63041A2B";
+            
+            document.getElementById('txtPixCopiaCola').value = pixPayload;
+
+            // Gera o QR Code na tela
+            new QRCode(document.getElementById("qrcode"), {
+                text: pixPayload,
+                width: 100,
+                height: 100
+            });
+            
+            // Simulação de linha digitável baseada no valor e data
+            var fatorVencimento = Math.floor((dataVenc - new Date("1997-10-07")) / (1000 * 60 * 60 * 24));
+            var valorLimpo = valorFormatadoPix.replace('.', '');
+            while(valorLimpo.length < 10) valorLimpo = "0" + valorLimpo;
+            
+            document.getElementById('lblLinhaDigitavel').innerText = `00190.00009 01234.567890 12345.678901 1 ${fatorVencimento}${valorLimpo}`;
+        }
+    }
+</script>
+</body>
+</html>
