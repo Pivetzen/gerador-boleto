@@ -20,7 +20,6 @@
         .pix-txt { width: 70%; }
         #qrcode { width: 100px; height: 100px; }
         
-        /* Container do Código de Barras Real */
         .codigo-barras-box { margin-top: 25px; height: 50px; display: flex; align-items: flex-end; }
         .bc-i, .bc-n { height: 50px; background-color: #000; display: inline-block; }
         .bc-w { height: 50px; background-color: #fff; display: inline-block; }
@@ -89,8 +88,9 @@
     <div class="linha" style="border-bottom: none;">
         <div class="coluna" style="flex: 3; border-bottom: 1px solid #000;">
             <div class="titulo">Instruções (Todas as instruções de cobrança)</div>
-            <div style="margin-top: 5px; color: #555;">Sr. Caixa, não receber após o vencimento.</div>
-            <div style="margin-top: 5px; font-weight: bold; color: #000;">PAGUE VIA PIX UTILIZANDO O QR CODE ABAIXO</div>
+            <div id="lblInstrucao1" style="margin-top: 5px; color: #000;"></div>
+            <div id="lblInstrucao2" style="margin-top: 3px; color: #000; font-weight: bold;"></div>
+            <div style="margin-top: 8px; font-weight: bold; color: #008080;">PAGUE VIA PIX UTILIZANDO O QR CODE ABAIXO</div>
         </div>
         <div class="coluna" style="padding: 0; flex: 1;">
             <div class="coluna" style="border-right: none; border-bottom: 1px solid #000;">
@@ -99,7 +99,7 @@
             </div>
             <div class="coluna" style="border-right: none; border-bottom: 1px solid #000;">
                 <div class="titulo">(-) Descontos / Abatimento</div>
-                <div style="text-align: right;">0,00</div>
+                <div class="valor" style="text-align: right; font-weight: normal;" id="lblDesconto">0,00</div>
             </div>
             <div class="coluna" style="border-right: none;">
                 <div class="titulo">(=) Valor Cobrado</div>
@@ -121,8 +121,8 @@
     <div class="linha" style="border-top: 1px solid #000;">
         <div class="coluna">
             <div class="titulo">Pagador</div>
-            <div id="lblPagador">Pagador</div>
-            <div style="margin-top: 3px;">Endereço Padrão do Cliente</div>
+            <div id="lblPagador" style="font-weight: bold;">Pagador</div>
+            <div id="lblEnderecoCompleto" style="margin-top: 3px; color: #333;">Endereço Padrão do Cliente</div>
         </div>
     </div>
 
@@ -140,7 +140,6 @@
         return result;
     }
 
-    // Função de cálculo de CRC16 exigido pelo Banco Central no PIX
     function calcularCRC16(payload) {
         let crc = 0xFFFF;
         for (let i = 0; i < payload.length; i++) {
@@ -158,7 +157,6 @@
         return crcString;
     }
 
-    // Função para montar o Payload Pix Estático Válido com tamanho dinâmico
     function gerarPayloadPix(chave, valor, beneficiario) {
         let nomeLimpo = beneficiario.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
         let valorStr = parseFloat(valor).toFixed(2);
@@ -166,15 +164,13 @@
         let merchantAccount = "0014br.gov.bcb.pix01" + (chave.length < 10 ? "0" : "") + chave.length + chave;
         let p = "00020101021226" + merchantAccount.length + merchantAccount + "52040000530398654" + (valorStr.length < 10 ? "0" : "") + valorStr.length + valorStr + "5802BR59" + (nomeLimpo.length < 10 ? "0" : "") + nomeLimpo.length + nomeLimpo + "6009FORTALEZA62070503***";
         
-        p += "6304"; // Indicador do início do CRC16
+        p += "6304";
         return p + calcularCRC16(p);
     }
 
-    // Gerador de Código de Barras nativo (Intercalado 2 de 5 - Padrão Febraban)
     function gerarCodigoDeBarrasI25(numero) {
         const padrao = ["00110", "10001", "01001", "11000", "00101", "10100", "01100", "00011", "10010", "01010"];
-        let resultado = "<div class='bc-i' style='width:1px;'></div><div class='bc-w' style='width:1px;'></div><div class='bc-i' style='width:1px;'></div><div class='bc-w' style='width:1px;'></div>"; // Start
-        
+        let resultado = "<div class='bc-i' style='width:1px;'></div><div class='bc-w' style='width:1px;'></div><div class='bc-i' style='width:1px;'></div><div class='bc-w' style='width:1px;'></div>";
         for (let i = 0; i < numero.length; i += 2) {
             let num1 = padrao[parseInt(numero.charAt(i))];
             let num2 = padrao[parseInt(numero.charAt(i + 1))];
@@ -185,7 +181,7 @@
                 resultado += `<div class='bc-w' style='width:${largEspaco}px;'></div>`;
             }
         }
-        resultado += "<div class='bc-i' style='width:3px;'></div><div class='bc-w' style='width:1px;'></div><div class='bc-i' style='width:1px;'></div>"; // Stop
+        resultado += "<div class='bc-i' style='width:3px;'></div><div class='bc-w' style='width:1px;'></div><div class='bc-i' style='width:1px;'></div>";
         return resultado;
     }
 
@@ -193,20 +189,35 @@
         var dados = getJsonFromUrl();
         
         if(dados.v) {
+            var vDoc = parseFloat(dados.v);
+            var vDesc = dados.desc ? parseFloat(dados.desc) : 0;
+            var vFinal = vDoc - vDesc; // Calcula o valor cobrado líquido
+
             document.getElementById('lblBeneficiario').innerText = dados.b + " | CNPJ: " + (dados.cb || "");
             document.getElementById('lblPagador').innerText = dados.p + " | CPF/CNPJ: " + (dados.cp || "");
-            document.getElementById('lblValor').innerText = "R$ " + parseFloat(dados.v).toLocaleString('pt-BR', {minimumFractionDigits: 2});
-            document.getElementById('lblValorTotal').innerText = "R$ " + parseFloat(dados.v).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            
+            // Montagem do endereço dinâmico
+            var enderecoCompleto = (dados.end || "") + " - " + (dados.cid || "") + " - CEP: " + (dados.cep || "");
+            document.getElementById('lblEnderecoCompleto').innerText = enderecoCompleto;
+
+            // Injeção de valores calculados
+            document.getElementById('lblValor').innerText = "R$ " + vDoc.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            document.getElementById('lblDesconto').innerText = "R$ " + vDesc.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            document.getElementById('lblValorTotal').innerText = "R$ " + vFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2});
             document.getElementById('lblNossoNumero').innerText = dados.n || "000001";
             
+            // Injeção de instruções da planilha
+            document.getElementById('lblInstrucao1').innerText = dados.i1 !== "undefined" ? dados.i1 : "Sr. Caixa, não receber após o vencimento.";
+            document.getElementById('lblInstrucao2').innerText = dados.i2 !== "undefined" ? dados.i2 : "";
+
             var dataVenc = new Date(dados.d + "T12:00:00");
             var dataHoje = new Date();
             document.getElementById('lblVencimento').innerText = dataVenc.toLocaleDateString('pt-BR');
             document.getElementById('lblDataDoc').innerText = dataHoje.toLocaleDateString('pt-BR');
             document.getElementById('lblDataProc').innerText = dataHoje.toLocaleDateString('pt-BR');
 
-            // 1. GERAÇÃO DO PIX VALIDADO (Com cálculo dinâmico de CRC16)
-            var pixPayload = gerarPayloadPix(dados.pix || "matheusmaia03@gmail.com", dados.v, dados.b);
+            // Gera o Pix em cima do Valor Líquido (vFinal)
+            var pixPayload = gerarPayloadPix(dados.pix, vFinal.toFixed(2), dados.b);
             document.getElementById('txtPixCopiaCola').value = pixPayload;
 
             new QRCode(document.getElementById("qrcode"), {
@@ -215,18 +226,13 @@
                 height: 100
             });
             
-            // 2. MONTAGEM DA LINHA DIGITÁVEL E CÓDIGO DE BARRAS REAL
+            // Linha digitável estruturada em cima do valor final cobrado
             var fatorVencimento = Math.floor((dataVenc - new Date("1997-10-07")) / (1000 * 60 * 60 * 24));
-            var valorLimpo = parseFloat(dados.v).toFixed(2).replace('.', '');
+            var valorLimpo = vFinal.toFixed(2).replace('.', '');
             while(valorLimpo.length < 10) valorLimpo = "0" + valorLimpo;
             
-            // Gerando dados numéricos estruturados de 44 dígitos para o código de barras
             var codigoBarrasNumerico = `0019${fatorVencimento}${valorLimpo}000009012345678901234567890`; 
-            
-            // Formata visualmente a linha digitável do topo do boleto
             document.getElementById('lblLinhaDigitavel').innerText = `00190.00009 01234.567890 12345.678901 1 ${fatorVencimento}${valorLimpo}`;
-            
-            // Renderiza o elemento gráfico das barras legíveis por scanner
             document.getElementById('barcodeContainer').innerHTML = gerarCodigoDeBarrasI25(codigoBarrasNumerico);
         }
     }
